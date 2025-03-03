@@ -2,10 +2,10 @@
 // server.js
 //
 // - YouTube: ytdl-core + yt-dlp fallback
-// - Sosyal Medya (Twitter/IG/FB): yt-dlp
+// - Sosyal Medya (Twitter/IG/FB): yt-dlp (Twitter için cookie desteği eklenmiştir)
 // - Normal dosyalar: segmentli / tek parça
 // - Pause/Resume, Kuyruk Yönetimi, Hız Sınırlama (token bucket)
-// - Global PATH’te yt-dlp yüklü varsayılıyor; konfigürasyon dosyaları da kullanılabilir.
+// - Global PATH’te yt-dlp yüklü varsayılıyor
 ///////////////////////////////////////////////////////////
 
 import express from "express";
@@ -22,6 +22,12 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
+
+// Kullanılacak ortak header bilgisi (User-Agent ekliyoruz)
+const commonHeaders = {
+    "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
+};
 
 // ================== JOB LİSTESİ ==================
 let jobs = [];
@@ -180,10 +186,9 @@ async function downloadYouTubeYtdl(job) {
 async function downloadYouTubeDlExec(job) {
     const outDir = path.join(__dirname, "downloads");
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir);
-    // Yeni yt-dlp yapılandırmasında "executable", "shell" gibi parametreler kullanılmıyor.
-    // Global PATH’te yt-dlp yüklü ise bu yeterli olacaktır.
     const execParams = {
-        output: path.join(outDir, "%(title)s.%(ext)s")
+        output: path.join(outDir, "%(title)s.%(ext)s"),
+        format: "best"
     };
     try {
         await youtubeDlExec(job.url, execParams);
@@ -196,7 +201,7 @@ async function downloadYouTubeDlExec(job) {
 }
 
 ////////////////////////////////////////////////////
-// 5) Sosyal Medya İndirme (yt-dlp)
+// 5) Sosyal Medya İndirme (yt-dlp) – Cookie Desteği ile
 ////////////////////////////////////////////////////
 async function downloadSocialMediaVideo(job) {
     console.log("Sosyal medya link tespit edildi:", job.url);
@@ -207,8 +212,13 @@ async function executeYtDlp(job) {
     const outDir = path.join(__dirname, "downloads");
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir);
     const execParams = {
-        output: path.join(outDir, "%(title)s.%(ext)s")
+        output: path.join(outDir, "%(title)s.%(ext)s"),
+        format: "best"
     };
+    // Eğer Twitter videoları için cookie gerekiyorsa, cookieStore üzerinden kontrol edelim:
+    if (job.url.includes("twitter.com") && cookieStore["twitter.com"]) {
+        execParams.cookies = cookieStore["twitter.com"];
+    }
     try {
         await youtubeDlExec(job.url, execParams);
         job.progress = 1;
@@ -243,7 +253,7 @@ async function downloadNormalFile(job) {
 
 async function downloadFileInSingleChunk(job, outDir, fileName) {
     job.segments = [];
-    const resp = await fetch(job.url);
+    const resp = await fetch(job.url, { headers: commonHeaders });
     if (!resp.ok) throw new Error(`Tek parça hata: ${resp.status}`);
     const cLen = resp.headers.get("content-length");
     let totalSize = cLen ? parseInt(cLen, 10) : 0;
@@ -324,7 +334,9 @@ async function downloadSegment(job, seg, totalSize, outDir, fileName) {
     const rangeHeader = `bytes=${segStart}-${segEnd}`;
     console.log(`Job ${job.id}, segment#${seg.index} => ${rangeHeader}`);
     const resp = await fetch(job.url, {
-        headers: { Range: rangeHeader },
+        headers: commonHeaders,
+        // Ekstra header'lar eklendi.
+        headers: { ...commonHeaders, Range: rangeHeader },
         signal: controller.signal
     });
     if (!resp.ok || (resp.status !== 206 && resp.status !== 200)) {
@@ -391,12 +403,9 @@ function mergeSegments(job, outDir, fileName) {
 // Yardımcı Fonksiyonlar
 ////////////////////////////////////////
 async function getFileSize(url) {
-    let headRes = await fetch(url, { method: "HEAD" });
+    let headRes = await fetch(url, { method: "HEAD", headers: commonHeaders });
     if (!headRes.ok) {
-        headRes = await fetch(url, {
-            method: "GET",
-            headers: { Range: "bytes=0-1" }
-        });
+        headRes = await fetch(url, { method: "GET", headers: { ...commonHeaders, Range: "bytes=0-1" } });
         if (!headRes.ok) {
             throw new Error(`HEAD+GET hata: ${headRes.status}`);
         }
@@ -409,16 +418,16 @@ async function getFileSize(url) {
 }
 
 async function supportsRangeRequests(url) {
-    const res = await fetch(url, { method: "HEAD" });
+    const res = await fetch(url, { method: "HEAD", headers: commonHeaders });
     if (!res.ok) return false;
     return res.headers.get("accept-ranges") === "bytes";
 }
 
 async function guessFilename(url) {
     try {
-        let hr = await fetch(url, { method: "HEAD" });
+        let hr = await fetch(url, { method: "HEAD", headers: commonHeaders });
         if (!hr.ok) {
-            hr = await fetch(url, { method: "GET", headers: { Range: "bytes=0-1" } });
+            hr = await fetch(url, { method: "GET", headers: { ...commonHeaders, Range: "bytes=0-1" } });
         }
         const disp = hr.headers.get("content-disposition");
         if (disp && disp.includes("filename=")) {
