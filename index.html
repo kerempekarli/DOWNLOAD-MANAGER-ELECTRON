@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Gelişmiş IDM Arayüzü</title>
+</head>
+
+<body>
+    <h1>İndirme Kuyruğu</h1>
+
+    <table border="1" id="queueTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>URL</th>
+                <th>Durum</th>
+                <th>İlerleme</th>
+                <th>Kontrol</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <hr />
+    <h3>Hız Sınırı Ayarla (Byte/saniye)</h3>
+    <input id="throttleInput" type="number" placeholder="50000" />
+    <button id="throttleBtn">Uygula</button>
+
+    <script>
+        async function fetchQueue() {
+            try {
+                const response = await fetch("http://localhost:3000/queue");
+                const data = await response.json();
+                renderQueue(data);
+            } catch (err) {
+                console.error("Kuyruk çekme hatası:", err);
+            }
+        }
+
+        function renderQueue(jobs) {
+            const tbody = document.querySelector("#queueTable tbody");
+            tbody.innerHTML = "";
+
+            jobs.forEach(job => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+          <td>${job.id}</td>
+          <td>${job.url}</td>
+          <td>${job.status}</td>
+          <td>${(job.progress * 100).toFixed(1)}%</td>
+          <td>
+            <button data-id="${job.id}" data-action="pause">Pause</button>
+            <button data-id="${job.id}" data-action="resume">Resume</button>
+          </td>
+        `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Tablodaki Pause/Resume butonlarına tıklama
+        document.addEventListener("click", async (e) => {
+            if (e.target.tagName === "BUTTON") {
+                const jobId = e.target.getAttribute("data-id");
+                const action = e.target.getAttribute("data-action");
+                if (action === "pause") {
+                    await fetch("http://localhost:3000/pause", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ jobId })
+                    });
+                } else if (action === "resume") {
+                    await fetch("http://localhost:3000/resume", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ jobId })
+                    });
+                }
+                // Sonra kuyruk durumunu güncelle
+                fetchQueue();
+            }
+        });
+
+        // Hız sınırı ayarlama
+        const throttleBtn = document.getElementById("throttleBtn");
+        const throttleInput = document.getElementById("throttleInput");
+        throttleBtn.addEventListener("click", async () => {
+            const limit = parseInt(throttleInput.value, 10) || 0;
+            await fetch("http://localhost:3000/set-throttle", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ limit })
+            });
+            alert(`Hız sınırı güncellendi: ${limit} B/s`);
+        });
+
+        // 2 saniyede bir kuyruk çek
+        setInterval(fetchQueue, 2000);
+        fetchQueue();
+    </script>
+</body>
+
+</html>

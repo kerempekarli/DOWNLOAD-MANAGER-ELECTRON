@@ -1,0 +1,23 @@
+{
+  "name": "idt-electron",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "electron": "^34.3.0",
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2",
+    "uuid": "^11.1.0",
+    "youtube-dl-exec": "^3.0.16",
+    "ytdl-core": "^4.11.5"
+  },
+  "devDependencies": {
+    "electron-builder": "^25.1.8"
+  }
+}
