@@ -10,6 +10,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "axios": "^1.8.1",
+    "child_process": "^1.0.2",
     "electron": "^34.3.0",
     "express": "^4.21.2",
     "node-fetch": "^3.3.2",
