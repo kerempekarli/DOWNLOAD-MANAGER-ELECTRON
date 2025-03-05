@@ -122,7 +122,7 @@ function getDownloadArgs(url, cookiesPath = null) {
     const args = ["-o", `${DOWNLOAD_DIR}/%(title)s.%(ext)s`];
 
     if (url.includes("youtube.com") || url.includes("youtu.be")) {
-        args.push("-f", "bestvideo+bestaudio/best", "-S", "res:720,ext:mp4");
+        args.push("-f", "bv*[ext=mp4]+ba*[ext=m4a]/b[ext=mp4]", "--merge-output-format", "mp4");
     } else if (url.includes("instagram.com")) {
         args.push("-f", "best", "-S", "res:720,ext:mp4");
     } else if (url.includes("twitter.com") || url.includes("x.com")) {
